@@ -1,0 +1,93 @@
+#include <HardwareSerial.h>
+#include "TinyGPS++.h"
+
+// ============================================
+// YOUR EXACT PIN CONFIGURATION
+// GPIO 14 = RX (NEO-6M TX connects here)
+// GPIO 47 = TX (NEO-6M RX connects here)
+// ============================================
+#define GPS_RX  14
+#define GPS_TX  47
+
+TinyGPSPlus    gps;
+HardwareSerial GPSSerial(1);
+
+unsigned long lastPrint      = 0;
+unsigned long charsReceived  = 0;
+unsigned long startTime      = 0;
+
+void setup() {
+    Serial.begin(115200);
+    delay(2000);
+
+    Serial.println("=====================================");
+    Serial.println("   NEO-6M GPS DIAGNOSTIC TEST");
+    Serial.println("=====================================");
+    Serial.printf("RX Pin : GPIO %d (NEO-6M TX here)\n", GPS_RX);
+    Serial.printf("TX Pin : GPIO %d (NEO-6M RX here)\n", GPS_TX);
+    Serial.println("Baud   : 9600");
+    Serial.println("=====================================");
+    Serial.println("Watching for RAW NMEA sentences...");
+    Serial.println("You should see \$GP... lines below:");
+    Serial.println("-------------------------------------");
+
+    GPSSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
+    startTime = millis();
+}
+
+void loop() {
+    // ── Print every RAW byte from GPS ──
+    while (GPSSerial.available()) {
+        char c = GPSSerial.read();
+        Serial.write(c);        // show raw NMEA
+        gps.encode(c);
+        charsReceived++;
+    }
+
+    // ── Status every 5 seconds ──
+    if (millis() - lastPrint >= 5000) {
+        lastPrint = millis();
+
+        unsigned long elapsed = (millis() - startTime) / 1000;
+
+        Serial.println();
+        Serial.println("===== STATUS =====");
+        Serial.printf("Time    : %lu seconds\n", elapsed);
+        Serial.printf("Chars   : %lu\n", charsReceived);
+        Serial.printf("Sentences: %lu\n", gps.passedChecksum());
+        Serial.printf("Satellites: %d\n", gps.satellites.value());
+
+        // Location
+        if (gps.location.isValid()) {
+            Serial.println("Fix     : YES ✓");
+            Serial.printf("LAT     : %.6f\n", gps.location.lat());
+            Serial.printf("LNG     : %.6f\n", gps.location.lng());
+        } else {
+            Serial.println("Fix     : NO");
+        }
+
+        // Diagnose problem
+        Serial.println("------ DIAGNOSIS ------");
+        if (charsReceived == 0) {
+            Serial.println("✗ ZERO chars received!");
+            Serial.println("  Check: NEO-6M TX → GPIO14");
+            Serial.println("  Check: NEO-6M VCC → 3.3V");
+            Serial.println("  Check: NEO-6M GND → GND");
+            Serial.println("  Try swap RX/TX pins");
+
+        } else if (gps.passedChecksum() == 0) {
+            Serial.println("✗ Chars received but no valid sentences");
+            Serial.println("  Wrong baud rate — trying 4800...");
+
+        } else if (gps.satellites.value() == 0) {
+            Serial.println("ℹ Data OK — no satellite fix yet");
+            Serial.println("  Antenna must face open sky");
+            Serial.println("  Cold start = wait 5-15 min");
+
+        } else {
+            Serial.println("✓ ALL GOOD — Fix acquired!");
+        }
+        Serial.println("===================");
+        Serial.println();
+    }
+}
