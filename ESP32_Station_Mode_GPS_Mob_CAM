@@ -10,8 +10,8 @@
 // ============================================
 
 // ── Change these to your phone hotspot ──
-const char* ssid     = "Wireshark";
-const char* password = "QwertyUioP@*0550_$&/";
+const char* ssid     = "";
+const char* password = "";
 // ────────────────────────────────────────
 
 // ============================================
